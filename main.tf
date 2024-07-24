@@ -1,86 +1,59 @@
-#create VPC
-resource "aws_vpc" "dev" {
-cidr_block = "10.0.0.0/16"
-tags={
-    Name = "dev"
-}  
-}
-#create internet gateway and attach to vpc
-resource "aws_internet_gateway" "dev" {
-    vpc_id = aws_vpc.dev.id #IG attach block to vpc
-  
+provider "aws" {
 }
 
-#create subnets
-resource "aws_subnet" "dev" {
-    cidr_block = "10.0.0.0/24"
-    vpc_id = aws_vpc.dev.id #subnet attach block yo vpc
-  
+locals {
+  ingress_rules = [{
+    port        = 443
+    description = "Ingress rules for port 443"
+    },
+    {
+      port        = 80
+      description = "Ingree rules for port 80"
+  },
+  {
+      port        = 8080
+      description = "Ingree rules for port 8080"
+
+  }]
 }
 
-
-#cretae Route tables & attach internet gateway to Rt
-
-resource "aws_route_table" "dev" {
-    vpc_id = aws_vpc.dev.id
-    route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.dev.id #attache block ig to rt
-     
-  }
-  
-}
-#subent associations
-resource "aws_route_table_association" "name" {
-    route_table_id = aws_route_table.dev.id #rout table association rt attach
-    subnet_id = aws_subnet.dev.id #rt association to subnet
-  
-}
-
-# Security group
-
-resource "aws_security_group" "dev" {
-  name        = "allow_tls"
-  vpc_id      = aws_vpc.dev.id
+resource "aws_instance" "ec2_example" {
+  ami                    = "ami-0c02fb55956c7d316"
+  instance_type          = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.main.id]
   tags = {
-    Name = "dev_sg"
+    Name = "Terraform EC2"
   }
- ingress {
-    description      = "TLS from VPC"
-    from_port        = 80
-    to_port          = 80
-    protocol         = "tcp"
-    cidr_blocks      = ["0.0.0.0/0"]
-    
-  }
-ingress {
-    description      = "TLS from VPC"
-    from_port        = 22
-    to_port          = 22
-    protocol         = "TCP"
-    cidr_blocks      = ["0.0.0.0/0"]
-    
-  }
-ingress {
-    description      = "TLS from VPC"
-    from_port        = 443
-    to_port          = 443
-    protocol         = "TCP"
-    cidr_blocks      = ["0.0.0.0/0"]
-    
-  }
+}
 
+resource "aws_security_group" "main" {
 
-egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    
+  egress = [
+    {
+      cidr_blocks      = ["0.0.0.0/0"]
+      description      = "*"
+      from_port        = 0
+      ipv6_cidr_blocks = []
+      prefix_list_ids  = []
+      protocol         = "-1"
+      security_groups  = []
+      self             = false
+      to_port          = 0
+  }]
+
+  dynamic "ingress" {
+    for_each = local.ingress_rules
+
+    content {
+      description = "*"
+      from_port   = ingress.value.port
+      to_port     = ingress.value.port
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
   }
 
-
+  tags = {
+    Name = "terra sg"
   }
-  
-
-
+}
